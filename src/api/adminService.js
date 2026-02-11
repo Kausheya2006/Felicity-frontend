@@ -34,3 +34,8 @@ export const resetOrganizerPassword = async (id, newPassword) => {
     const response = await api.post(`/admin/organizers/${id}/reset-password`, { newPassword });
     return response.data;
 };
+
+export const getStatistics = async () => {
+    const response = await api.get('/admin/statistics');
+    return response.data;
+};
