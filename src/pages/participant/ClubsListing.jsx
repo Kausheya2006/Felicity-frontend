@@ -18,6 +18,7 @@ const ClubsListing = () => {
   const fetchOrganizers = async () => {
     try {
       const data = await getAllOrganizers();
+      console.log(data)
       setOrganizers(data.organizers || []);
     } catch (error) {
       console.error('Error fetching organizers:', error);

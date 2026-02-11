@@ -343,14 +343,14 @@ const EventDetails = () => {
           {isRegistrationClosed() && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <p className="text-red-800 font-medium">
-                ⚠️ {event.registrationDeadline ? 'Registration deadline has passed' : 'Event has already started - registrations closed'}
+                {event.registrationDeadline ? 'Registration deadline has passed' : 'Event has already started - registrations closed'}
               </p>
             </div>
           )}
 
           {isLimitReached() && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-              <p className="text-yellow-800 font-medium">⚠️ Registration limit reached</p>
+              <p className="text-yellow-800 font-medium">Registration limit reached</p>
             </div>
           )}
 
@@ -359,7 +359,7 @@ const EventDetails = () => {
             <div className="border-t pt-6 mb-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Team Registration</h2>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <p className="text-green-800 font-medium mb-2">👥 This event requires team registration</p>
+                <p className="text-green-800 font-medium mb-2">This event requires team registration</p>
                 <p className="text-sm text-green-700">
                   Create a team and invite {event.minTeamSize - 1} to {event.maxTeamSize - 1} members, 
                   or join an existing team using an invite code.
@@ -460,7 +460,7 @@ const EventDetails = () => {
               
               <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  💡 <strong>Note:</strong> You can register for this event without purchasing merchandise, 
+                  <strong>Note:</strong> You can register for this event without purchasing merchandise, 
                   or you can purchase merchandise now.
                 </p>
               </div>
@@ -588,7 +588,7 @@ const EventDetails = () => {
                 variant="primary"
                 className="px-6 py-3"
               >
-                ⭐ Submit Feedback
+                Submit Feedback
               </Button>
             </div>
           </Card>
@@ -605,7 +605,7 @@ const EventDetails = () => {
         {!canAccessForum && user && event?.status === 'PUBLISHED' && (
           <div className="mt-8 bg-gray-100 rounded-lg p-6 text-center">
             <p className="text-gray-600">
-              💬 Register for this event to access the discussion forum and connect with other participants!
+              Register for this event to access the discussion forum and connect with other participants!
             </p>
           </div>
         )}

@@ -201,9 +201,9 @@ const OrganizerDetail = () => {
 
                   <div className="space-y-1 text-sm text-gray-700">
                     {event.eventStartDate && (
-                      <p>📅 {new Date(event.eventStartDate).toLocaleDateString()}</p>
+                      <p>{new Date(event.eventStartDate).toLocaleDateString()}</p>
                     )}
-                    {event.venue && <p>📍 {event.venue}</p>}
+                    {event.venue && <p>{event.venue}</p>}
                     {event.fee > 0 && <p className="text-green-600 font-semibold">💰 ${event.fee}</p>}
                   </div>
 

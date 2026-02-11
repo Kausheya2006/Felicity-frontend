@@ -119,12 +119,12 @@ const MessageItem = ({
                 )}
                 {message.isAnnouncement && (
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
-                    📢 Announcement
+                    Announcement
                   </span>
                 )}
                 {message.isPinned && (
                   <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full">
-                    📌 Pinned
+                    Pinned
                   </span>
                 )}
               </div>
@@ -242,7 +242,7 @@ const MessageItem = ({
                   onClick={() => onReply(message)}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
-                  💬 Reply
+                  Reply
                 </button>
                 {message.replyCount > 0 && (
                   <button
@@ -551,7 +551,7 @@ const DiscussionForum = ({ eventId, isOrganizer = false }) => {
       {/* Header */}
       <div className="px-4 py-3 border-b flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-gray-900">💬 Discussion Forum</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Discussion Forum</h3>
           {unreadCount > 0 && (
             <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
               {unreadCount} new
@@ -592,7 +592,7 @@ const DiscussionForum = ({ eventId, isOrganizer = false }) => {
       {pinnedMessages.filter(m => !m.isAnnouncement).length > 0 && (
         <div className="border-b">
           <div className="px-4 py-2 bg-yellow-50">
-            <h4 className="text-sm font-semibold text-yellow-800">📌 Pinned Messages</h4>
+            <h4 className="text-sm font-semibold text-yellow-800">Pinned Messages</h4>
           </div>
           <div className="divide-y">
             {pinnedMessages.filter(m => !m.isAnnouncement).map(msg => (

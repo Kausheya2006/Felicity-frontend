@@ -435,7 +435,7 @@ const TeamChat = ({ team, onClose }) => {
 
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <span className="text-4xl mb-2">💬</span>
+            <span className="text-4xl mb-2"></span>
             <p>No messages yet</p>
             <p className="text-sm">Start the conversation!</p>
           </div>

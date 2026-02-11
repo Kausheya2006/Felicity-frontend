@@ -102,7 +102,7 @@ const BrowseEvents = () => {
         {/* Info Banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-800">
-            <strong>👥 Team Events:</strong> Look for events with the "TEAM" badge. Click on them to create/join teams. 
+            <strong>Team Events:</strong> Look for events with the "TEAM" badge. Click on them to create/join teams. 
             Visit <button onClick={() => navigate('/teams')} className="underline font-semibold hover:text-blue-900">Teams Dashboard</button> to manage your teams.
           </p>
         </div>
@@ -141,7 +141,7 @@ const BrowseEvents = () => {
               variant={activeFilter === 'trending' ? 'primary' : 'secondary'}
               size="sm"
             >
-              🔥 Trending (Top 5 / 24h)
+              Trending (Top 5 / 24h)
             </Button>
             <Button
               onClick={() => {
@@ -257,7 +257,7 @@ const BrowseEvents = () => {
                     <div className="flex gap-2">
                       {event.allowTeams && (
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800" title={`Team event: ${event.minTeamSize}-${event.maxTeamSize} members`}>
-                          👥 TEAM
+                          TEAM
                         </span>
                       )}
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -311,7 +311,7 @@ const BrowseEvents = () => {
 
                     {activeFilter === 'trending' && event.registrationCount && (
                       <div className="flex items-center text-orange-600 font-semibold">
-                        <span>🔥 {event.registrationCount} registrations (24h)</span>
+                        <span>{event.registrationCount} registrations (24h)</span>
                       </div>
                     )}
                   </div>

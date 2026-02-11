@@ -14,6 +14,7 @@ const AdminDashBoard = () => {
     const [activeTab, setActiveTab] = useState('create'); 
     const [pendingOrganizers, setPendingOrganizers] = useState([]);
     const [allOrganizers, setAllOrganizers] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showResetPasswordForm, setShowResetPasswordForm] = useState(null);
     const [newPassword, setNewPassword] = useState('');
@@ -36,6 +37,10 @@ const AdminDashBoard = () => {
     }
 
     useEffect(() => {
+        console.log('AdminDashboard mounted. User:', user);
+        console.log('User role:', user?.role);
+        console.log('Token exists:', !!localStorage.getItem('token'));
+        console.log('API Base URL:', import.meta.env.VITE_BACKEND_URL);
         fetchAllOrganizers();
         fetchStatistics();
     }, []);
@@ -61,10 +66,31 @@ const AdminDashBoard = () => {
 
     const fetchAllOrganizers = async () => {
         try {
+            setLoading(true);
+            console.log('Fetching organizers from API...');
             const data = await getAllOrganizers();
-            setAllOrganizers(data.organizers);  
+            console.log('Raw API response:', JSON.stringify(data, null, 2));
+            console.log('Organizers array:', data.organizers);
+            console.log('Organizers count:', data.count);
+            
+            if (data && Array.isArray(data.organizers)) {
+                setAllOrganizers(data.organizers);
+                console.log('Set organizers state with', data.organizers.length, 'items');
+            } else {
+                console.warn('Invalid response format:', data);
+                setAllOrganizers([]);
+            }
         } catch (err) {
-            alert('Failed to fetch organizers. Please try again.');   
+            console.error('Error fetching organizers:', err);
+            console.error('Error details:', {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status
+            });
+            alert(`Failed to fetch organizers: ${err.response?.data?.message || err.message}`);
+            setAllOrganizers([]);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -146,7 +172,10 @@ const AdminDashBoard = () => {
                             Create Organizer
                         </button>
                         <button
-                            onClick={() => setActiveTab('manage')}
+                            onClick={() => {
+                                setActiveTab('manage');
+                                fetchAllOrganizers();
+                            }}
                             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                                 activeTab === 'manage'
                                     ? 'border-red-500 text-red-600'
@@ -281,10 +310,34 @@ const AdminDashBoard = () => {
 
                 {/* MANAGE ORGANIZERS */}
                 {activeTab === 'manage' && (
-                    <Card title="All Organizers">
-                        {allOrganizers.length === 0 ? (
+                    <Card>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-800">
+                                All Organizers {allOrganizers.length > 0 && `(${allOrganizers.length})`}
+                            </h3>
+                            <button
+                                onClick={fetchAllOrganizers}
+                                className="text-sm px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:bg-gray-400"
+                                disabled={loading}
+                            >
+                                {loading ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                        </div>
+                        {loading ? (
+                            <div className="text-center py-12">
+                                <p className="text-gray-500 text-lg">Loading organizers...</p>
+                            </div>
+                        ) : allOrganizers.length === 0 ? (
                             <div className="text-center py-12">
                                 <p className="text-gray-500 text-lg">No organizers found</p>
+                                <p className="text-gray-400 text-sm mt-2">Create an organizer using the "Create Organizer" tab</p>
+                                <p className="text-gray-400 text-xs mt-2">Check browser console (F12) for debug info</p>
+                                <button
+                                    onClick={() => setActiveTab('create')}
+                                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                >
+                                    Go to Create Organizer Tab
+                                </button>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">

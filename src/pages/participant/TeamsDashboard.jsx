@@ -161,7 +161,7 @@ const TeamsDashboard = () => {
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
                                 <h4 className="font-semibold text-blue-900 mb-2">How to get started:</h4>
                                 <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
-                                    <li>Browse events and look for events with the <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-semibold">👥 TEAM</span> badge</li>
+                                    <li>Browse events and look for events with the <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-semibold">TEAM</span> badge</li>
                                     <li>Click on a team event to open its details page</li>
                                     <li>Click <strong>"Create New Team"</strong> to start your own team, OR</li>
                                     <li>Click <strong>"Join Existing Team"</strong> and enter an invite code from your team leader</li>
@@ -282,7 +282,7 @@ const TeamsDashboard = () => {
                                                 variant="purple"
                                                 className="relative"
                                             >
-                                                💬 Chat
+                                                Chat
                                                 {unreadCounts[team._id] > 0 && (
                                                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center">
                                                         {unreadCounts[team._id]}
