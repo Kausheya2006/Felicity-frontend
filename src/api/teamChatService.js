@@ -1,7 +1,7 @@
 import api from './axios';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5001';
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
 
 let socket = null;
 
