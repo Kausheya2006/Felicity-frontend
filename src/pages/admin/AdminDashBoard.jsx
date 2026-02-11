@@ -46,7 +46,16 @@ const AdminDashBoard = () => {
             const data = await getStatistics();
             setStatistics(data);  
         } catch (err) {
-            console.error('Failed to fetch statistics:', err);   
+            console.error('Failed to fetch statistics:', err);
+            // Set default values if endpoint not ready yet
+            setStatistics({
+                totalOrganizers: 0,
+                verifiedOrganizers: 0,
+                pendingOrganizers: 0,
+                totalEvents: 0,
+                totalParticipants: 0,
+                totalRegistrations: 0
+            });
         }
     };
 
