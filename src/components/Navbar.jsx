@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import felicityIcon from '../assets/felicity.png';
 
 function Navbar({ title = "Dashboard" }) {
   const { user, logout } = useAuth();
@@ -34,9 +35,16 @@ function Navbar({ title = "Dashboard" }) {
 
   return (
     <nav className="bg-white shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-6">
+      <div className="w-full px-4 sm:px-6 lg:px-1">
+        <div className="flex justify-between items-center h-16 pl-1 pr-3">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center cursor-pointer shrink-0" onClick={() => navigate('/dashboard')}>
+              <img src={felicityIcon} alt="Felicity" className="w-12 h-12" />
+              <span className="text-2xl font-bold text-gray-800">
+                Felicity
+              </span>
+            </div>
+            <div className="hidden sm:block h-8 w-px bg-gray-200" />
             <div className="flex items-center space-x-3">
               <div className={`w-10 h-10 rounded-full ${getRoleColor()} flex items-center justify-center text-white font-bold text-lg`}>
                 {user?.role?.charAt(0).toUpperCase()}
