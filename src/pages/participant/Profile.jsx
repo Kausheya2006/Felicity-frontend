@@ -240,8 +240,12 @@ const Profile = () => {
                     type="text"
                     value={formData.college}
                     onChange={(e) => setFormData({ ...formData, college: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={profile.participantProfile?.participantType === 'IIIT'}
+                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${profile.participantProfile?.participantType === 'IIIT' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   />
+                  {profile.participantProfile?.participantType === 'IIIT' && (
+                    <p className="text-xs text-gray-500 mt-1">College is locked for IIIT participants</p>
+                  )}
                 </div>
               </div>
 

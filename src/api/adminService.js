@@ -30,6 +30,11 @@ export const removeOrganizer = async (id, permanent = false) => {
     return response.data;
 };
 
+export const reactivateOrganizer = async (id) => {
+    const response = await api.put(`/admin/organizers/${id}/reactivate`);
+    return response.data;
+};
+
 export const resetOrganizerPassword = async (id, newPassword) => {
     const response = await api.post(`/admin/organizers/${id}/reset-password`, { newPassword });
     return response.data;

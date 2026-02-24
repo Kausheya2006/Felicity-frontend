@@ -46,7 +46,9 @@ export const getEventAnalytics = async (eventId) => {
 };
 
 export const exportRegistrations = async (eventId) => {
-    const response = await api.get(`/organizer/events/${eventId}/export`);
+    const response = await api.get(`/organizer/events/${eventId}/export`, {
+        responseType: 'blob'
+    });
     return response.data;
 };
 

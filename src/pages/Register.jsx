@@ -21,9 +21,19 @@ const Register = () => {
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
-        setFormData({...formData,[e.target.name]: e.target.value});  
-        // [] : compute property name, 
-        // ... -> spread operator used to copy existing properties  (eg: if we update email, password and other properties will be lost if we don't use ...formData)
+        const { name, value } = e.target;
+        
+        // If participant type changes to IIIT, lock college to IIIT Hyderabad
+        if (name === 'participantType') {
+            if (value === 'IIIT') {
+                setFormData({...formData, participantType: value, college: 'IIIT Hyderabad'});
+            } else {
+                setFormData({...formData, participantType: value, college: ''});
+            }
+            return;
+        }
+        
+        setFormData({...formData, [name]: value});
     };
 
     const handleSubmit = async (e) => {
@@ -113,7 +123,11 @@ const Register = () => {
                             <label htmlFor="college" className="block text-sm font-medium text-gray-700">College/Organization *</label>
                             <input type="text" id="college" name="college" value={formData.college}
                                 onChange={handleChange} required placeholder="Enter college/organization"
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"/>
+                                disabled={formData.participantType === 'IIIT'}
+                                className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${formData.participantType === 'IIIT' ? 'bg-gray-100 cursor-not-allowed' : ''}`}/>
+                            {formData.participantType === 'IIIT' && (
+                                <p className="mt-1 text-xs text-gray-500">College is locked for IIIT participants</p>
+                            )}
                         </div>
                     </div>
 

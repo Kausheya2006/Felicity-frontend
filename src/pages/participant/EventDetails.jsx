@@ -27,6 +27,8 @@ const EventDetails = () => {
   const [showJoinTeamModal, setShowJoinTeamModal] = useState(false);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [myRegistration, setMyRegistration] = useState(null);
+  const [rejectedRegistration, setRejectedRegistration] = useState(null);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [canAccessForum, setCanAccessForum] = useState(false);
 
@@ -56,10 +58,21 @@ const EventDetails = () => {
       if (user.role === 'participant') {
         try {
           const registrations = await getMyRegistrations();
-          const registered = registrations.some(reg => 
-            reg.eventId === id || reg.eventId?._id === id
-          );
+          const myReg = registrations.find(reg => {
+            const regEventId = reg.eventId?._id || reg.eventId;
+            return (
+              regEventId === id &&
+              (reg.status === 'CONFIRMED' || reg.status === 'PENDING')
+            );
+          });
+          const rejectedReg = registrations.find(reg => {
+            const regEventId = reg.eventId?._id || reg.eventId;
+            return regEventId === id && reg.status === 'REJECTED';
+          });
+          const registered = !!myReg;
           setIsRegistered(registered);
+          setMyRegistration(myReg || null);
+          setRejectedRegistration(rejectedReg || null);
           setCanAccessForum(registered);
           if (registered) {
             initSocket(localStorage.getItem('token'));
@@ -131,8 +144,8 @@ const EventDetails = () => {
   const handleNormalRegistration = async (e) => {
     e.preventDefault();
     try {
-      await registerForEvent(id, { formData });
-      alert('Registration successful! Check your email for the ticket.');
+      await registerForEvent(id, formData);
+      alert('Registration successful!');
       navigate('/dashboard');
     } catch (error) {
       alert(error.response?.data?.message || 'Registration failed');
@@ -145,8 +158,13 @@ const EventDetails = () => {
       return;
     }
 
+    const registrationFee = event.fee || 0;
+    const merchandiseFee = event.merchandiseFee || 0;
+    const total = registrationFee + merchandiseFee * quantity;
+
     try {
       const orderData = {
+        formData,
         order: {
           sku: selectedItem.sku,
           name: selectedItem.name,
@@ -155,26 +173,26 @@ const EventDetails = () => {
             color: selectedVariant.color
           },
           quantity,
-          price: event.fee || 0
+          price: merchandiseFee,
         }
       };
       await registerForMerchEvent(id, orderData);
-      alert('Purchase successful! Please upload payment proof in your dashboard.');
+      alert(`Order placed! Total amount due: ₹${total} (₹${registrationFee} registration + ₹${merchandiseFee}×${quantity} merchandise). Please upload payment proof in your dashboard.`);
       navigate('/dashboard');
     } catch (error) {
       alert(error.response?.data?.message || 'Purchase failed');
     }
   };
 
-  const handleMerchEventRegistration = async () => {
-    try {
-      await registerForEvent(id, { formData: {} });
-      alert('Registration successful! You can purchase merchandise later if you want.');
-      navigate('/dashboard');
-    } catch (error) {
-      alert(error.response?.data?.message || 'Registration failed');
-    }
-  };
+const handleMerchEventRegistration = async () => {
+  try {
+    const res = await registerForMerchEvent(id, { formData }); // no merch, but with form data
+    alert(res.message || 'Registration submitted!');
+    navigate('/dashboard');
+  } catch (error) {
+    alert(error.response?.data?.message || 'Registration failed');
+  }
+};
 
   const handleCreateTeam = async (teamData) => {
     try {
@@ -290,10 +308,20 @@ const EventDetails = () => {
                 </div>
               )}
 
-              {event.fee > 0 && (
+              {event.type === 'NORMAL' && event.fee > 0 && (
                 <div>
                   <p className="text-sm font-medium text-gray-500">Fee</p>
-                  <p className="text-lg font-semibold text-green-600">${event.fee}</p>
+                  <p className="text-lg font-semibold text-green-600">₹{event.fee}</p>
+                </div>
+              )}
+
+              {event.type === 'MERCH' && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Fees</p>
+                  <p className="text-base text-gray-800">Registration: <span className="font-semibold text-green-600">₹{event.fee || 0}</span></p>
+                  {event.merchandiseFee > 0 && (
+                    <p className="text-base text-gray-800">Per Merch Item: <span className="font-semibold text-green-600">₹{event.merchandiseFee}</span></p>
+                  )}
                 </div>
               )}
 
@@ -394,8 +422,18 @@ const EventDetails = () => {
             </div>
           )}
 
+          {/* Payment Rejected Notice */}
+          {!isRegistered && rejectedRegistration && (
+            <div className="border-t pt-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                <p className="text-red-700 font-semibold">Your payment was rejected.</p>
+                <p className="text-red-600 text-sm mt-1">Please re-register and upload a valid payment screenshot.</p>
+              </div>
+            </div>
+          )}
+
           {/* Registration Form for NORMAL Events */}
-          {event.type === 'NORMAL' && !event.allowTeams && !isRegistrationClosed() && !isLimitReached() && (
+          {event.type === 'NORMAL' && !event.allowTeams && !isRegistered && !isRegistrationClosed() && !isLimitReached() && (
             <div className="border-t pt-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Register for Event</h2>
               <form onSubmit={handleNormalRegistration} className="space-y-4">
@@ -409,6 +447,7 @@ const EventDetails = () => {
                         <input
                           type="text"
                           required={field.required}
+                          value={formData[field.fieldId] || ''}
                           onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
@@ -417,6 +456,7 @@ const EventDetails = () => {
                         <input
                           type="number"
                           required={field.required}
+                          value={formData[field.fieldId] || ''}
                           onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
@@ -424,6 +464,7 @@ const EventDetails = () => {
                       {field.type === 'select' && field.options && (
                         <select
                           required={field.required}
+                          value={formData[field.fieldId] || ''}
                           onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
@@ -437,6 +478,7 @@ const EventDetails = () => {
                         <input
                           type="checkbox"
                           required={field.required}
+                          checked={formData[field.fieldId] || false}
                           onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.checked })}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
@@ -454,14 +496,79 @@ const EventDetails = () => {
           )}
 
           {/* Purchase Form for MERCH Events */}
-          {event.type === 'MERCH' && !isRegistrationClosed() && (
+          {event.type === 'MERCH' && !isRegistered && !isRegistrationClosed() && (
             <div className="border-t pt-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Register & Purchase Merchandise</h2>
               
-              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              {/* Form Fields for MERCH Events */}
+              {event.formSchema && event.formSchema.length > 0 && (
+                <div className="mb-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Registration Information</h3>
+                  {event.formSchema.map((field) => (
+                    <div key={field.fieldId}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'text' && (
+                        <input
+                          type="text"
+                          required={field.required}
+                          value={formData[field.fieldId] || ''}
+                          onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      )}
+                      {field.type === 'number' && (
+                        <input
+                          type="number"
+                          required={field.required}
+                          value={formData[field.fieldId] || ''}
+                          onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      )}
+                      {field.type === 'select' && field.options && (
+                        <select
+                          required={field.required}
+                          value={formData[field.fieldId] || ''}
+                          onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select...</option>
+                          {field.options.map((opt, idx) => (
+                            <option key={idx} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+                      {field.type === 'checkbox' && (
+                        <input
+                          type="checkbox"
+                          required={field.required}
+                          checked={formData[field.fieldId] || false}
+                          onChange={(e) => setFormData({ ...formData, [field.fieldId]: e.target.checked })}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                <p className="text-sm font-semibold text-blue-900">Fee Breakdown:</p>
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> You can register for this event without purchasing merchandise, 
-                  or you can purchase merchandise now.
+                  • <strong>Registration fee:</strong> ₹{event.fee || 0} (required for all participants)
+                </p>
+                {event.merchandiseFee > 0 && (
+                  <p className="text-sm text-blue-800">
+                    • <strong>Merchandise fee:</strong> ₹{event.merchandiseFee} per item
+                  </p>
+                )}
+                <p className="text-sm text-blue-700 mt-2">
+                  Register without merch → pay <strong>₹{event.fee || 0}</strong>
+                  {event.merchandiseFee > 0 && (
+                    <> | With 1 item → <strong>₹{(event.fee || 0) + (event.merchandiseFee || 0)}</strong></>
+                  )}
                 </p>
               </div>
 
@@ -471,7 +578,7 @@ const EventDetails = () => {
                   variant="secondary"
                   className="w-full"
                 >
-                  Register Without Merchandise
+                  Register Without Merchandise {event.fee > 0 ? `— Pay ₹${event.fee}` : '(Free)'}
                 </Button>
               </div>
 
@@ -564,7 +671,14 @@ const EventDetails = () => {
                     className="w-full"
                     disabled={!selectedItem || !selectedVariant}
                   >
-                    Register & Purchase {event.fee > 0 && `- $${event.fee * quantity}`}
+                    Register & Buy Merchandise
+                    {selectedItem && selectedVariant && (
+                      <> — Pay ₹{(event.fee || 0) + (event.merchandiseFee || 0) * quantity}
+                        <span className="text-xs ml-1 opacity-75">
+                          (₹{event.fee || 0} reg + ₹{event.merchandiseFee || 0}×{quantity})
+                        </span>
+                      </>
+                    )}
                   </Button>
                 </div>
               ) : (
@@ -574,7 +688,71 @@ const EventDetails = () => {
             </div>
           )}
         </Card>
+          {/* Your Registration Details - shown to registered participants */}
+          {isRegistered && myRegistration && user?.role === 'participant' && (
+            <div className="border-t pt-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Your Registration</h2>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    myRegistration.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {myRegistration.status}
+                  </span>
+                  <span className="text-sm text-gray-600">Ticket ID: <span className="font-mono">{myRegistration.ticketId}</span></span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Registered on: {new Date(myRegistration.createdAt).toLocaleString()}
+                </p>
+              </div>
 
+              {/* Display filled custom form fields */}
+              {event.formSchema && event.formSchema.length > 0 && myRegistration.formResponse && Object.keys(myRegistration.formResponse).length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Submitted Information</h3>
+                  <div className="space-y-3">
+                    {event.formSchema.map((field) => (
+                      <div key={field.fieldId} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                        <span className="text-sm font-medium text-gray-500 sm:w-1/3">{field.label}:</span>
+                        <span className="text-sm text-gray-900">
+                          {myRegistration.formResponse[field.fieldId] !== undefined && myRegistration.formResponse[field.fieldId] !== null
+                            ? (field.type === 'checkbox'
+                              ? (myRegistration.formResponse[field.fieldId] ? 'Yes' : 'No')
+                              : String(myRegistration.formResponse[field.fieldId]))
+                            : <span className="text-gray-400 italic">Not provided</span>
+                          }
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Display order details if applicable */}
+              {myRegistration.order && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Order Details</h3>
+                  {myRegistration.order.sku === 'REGISTRATION_FEE' ? (
+                    <p className="text-sm text-gray-600">Registration Fee: <span className="font-semibold">₹{myRegistration.order.amountPaid || myRegistration.order.price}</span></p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-sm text-gray-600">Item: <span className="font-medium">{myRegistration.order.name}</span></p>
+                      <p className="text-sm text-gray-600">Variant: {myRegistration.order.variant?.size} / {myRegistration.order.variant?.color}</p>
+                      <p className="text-sm text-gray-600">Quantity: {myRegistration.order.quantity}</p>
+                      <p className="text-sm text-gray-600">Amount: <span className="font-semibold">₹{myRegistration.order.amountPaid || (myRegistration.order.price * myRegistration.order.quantity)}</span></p>
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-600 mt-2">
+                    Payment Status: <span className={`font-semibold ${
+                      myRegistration.order.paymentStatus === 'APPROVED' ? 'text-green-600' :
+                      myRegistration.order.paymentStatus === 'REJECTED' ? 'text-red-600' :
+                      'text-yellow-600'
+                    }`}>{myRegistration.order.paymentStatus}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         {/* Feedback Section - Only for registered participants */}
         {isRegistered && user?.role === 'participant' && !isOrganizer && (
           <Card className="mt-6">

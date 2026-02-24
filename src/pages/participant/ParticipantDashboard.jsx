@@ -154,7 +154,18 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                 <Card title={`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Events`}>
                     {filteredRegistrations.length === 0 ? (
                         <div className="text-center py-12">
-                            <p className="text-gray-500 text-lg">No {activeTab} events found</p>
+                            <p className="text-gray-500 text-lg">
+                                {activeTab === 'upcoming' 
+                                    ? 'No upcoming registered events found' 
+                                    : activeTab === 'completed'
+                                    ? 'No completed events found'
+                                    : activeTab === 'cancelled'
+                                    ? 'No cancelled or rejected registrations'
+                                    : `No ${activeTab} events found`}
+                            </p>
+                            <p className="text-gray-400 text-sm mt-2">
+                                {activeTab === 'upcoming' && 'Register for events to see them here'}
+                            </p>
                             <Button 
                                 onClick={() => navigate('/browse-events')} 
                                 variant="primary" 
@@ -216,16 +227,19 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                {reg.type === 'MERCH' && reg.order ? (
+                                                {(reg.order || (reg.status === 'PENDING' && reg.type === 'MERCH')) ? (
                                                     <div className="flex flex-col space-y-1">
                                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                            reg.order.paymentStatus === 'APPROVED' ? 'bg-green-100 text-green-800' : 
-                                                            reg.order.paymentStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                                                            (reg.order?.paymentStatus || (reg.status === 'PENDING' ? 'PENDING' : 'N/A')) === 'APPROVED' ? 'bg-green-100 text-green-800' : 
+                                                            (reg.order?.paymentStatus) === 'REJECTED' ? 'bg-red-100 text-red-800' :
                                                             'bg-yellow-100 text-yellow-800'
                                                         }`}>
-                                                            {reg.order.paymentStatus || 'PENDING'}
+                                                            {reg.order?.paymentStatus || (reg.status === 'PENDING' ? 'PENDING' : 'N/A')}
                                                         </span>
-                                                        {reg.order.paymentStatus === 'REJECTED' && reg.order.rejectionReason && (
+                                                        {reg.order?.amountPaid > 0 && reg.order?.paymentStatus !== 'APPROVED' && (
+                                                            <span className="text-xs text-gray-600">₹{reg.order.amountPaid} due</span>
+                                                        )}
+                                                        {reg.order?.paymentStatus === 'REJECTED' && reg.order?.rejectionReason && (
                                                             <span className="text-xs text-red-600" title={reg.order.rejectionReason}>
                                                                 ⚠ {reg.order.rejectionReason.substring(0, 20)}...
                                                             </span>
@@ -236,9 +250,9 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-500 font-mono">
-                                                {reg.type === 'MERCH' && reg.status === 'PENDING' ? (
-                                                    <span className="text-gray-400 text-xs">Pending Payment</span>
-                                                ) : reg.qrPayload ? (
+                                                {reg.status === 'PENDING' ? (
+                                                    <span className="text-yellow-600 text-xs font-medium">Awaiting Payment Approval</span>
+                                                ) : reg.status === 'CONFIRMED' && reg.qrPayload ? (
                                                     <button
                                                         onClick={() => handleViewQR(reg)}
                                                         className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -247,7 +261,7 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                         View Ticket
                                                     </button>
                                                 ) : (
-                                                    <span className="text-gray-400 text-xs">{reg.ticketId?.substring(0, 8)}...</span>
+                                                    <span className="text-gray-400 text-xs">Not available</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -259,15 +273,15 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                     >
                                                         View Event
                                                     </Button>
-                                                    {reg.type === 'MERCH' && 
-                                                     reg.order && 
-                                                     (!reg.order.paymentProof || reg.order.paymentStatus === 'REJECTED') && (
+                                                    {(reg.order || (reg.status === 'PENDING' && reg.type === 'MERCH')) && 
+                                                     (!reg.order?.paymentProof || reg.order?.paymentStatus === 'REJECTED') &&
+                                                     reg.order?.paymentStatus !== 'APPROVED' && (
                                                         <Button 
                                                             onClick={() => handleUploadPaymentProof(reg)} 
                                                             size="sm" 
                                                             variant="primary"
                                                         >
-                                                            {reg.order.paymentProof ? 'Re-upload' : 'Upload'} Payment
+                                                            {reg.order?.paymentProof ? 'Re-upload' : 'Upload'} Payment
                                                         </Button>
                                                     )}
                                                     {(reg.status === 'CONFIRMED' || reg.status === 'PENDING') && 

@@ -1,7 +1,7 @@
 import api from './axios';
 
 export const getAllEvents = async (filters = {}) => {
-    const params = new URLSearchParams(filters);
+    const params = new URLSearchParams(filters);  // convert {key: value} to key=value&key2=value2
     const response = await api.get(`/events?${params}`);
     return response.data;
 };

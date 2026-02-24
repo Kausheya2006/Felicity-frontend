@@ -43,6 +43,7 @@ const OrganizerDashboard = () => {
         registrationDeadline: '', // keep empty; will auto-fill on submit
         eligibility: [],
         fee: 0,
+        merchandiseFee: 0,
         tags: '',
         formSchema: [],
         // Merchandise fields
@@ -126,7 +127,11 @@ const OrganizerDashboard = () => {
   const fetchEventRegistrations = async (eventId) => {
     try {
       const data = await getEventRegistrations(eventId);
-      setRegistrations(data);
+      setRegistrations(data.registrations || data); // Handle both new and old response formats
+      if (data.event) {
+        // Update selectedEvent with full event data including formSchema
+        setSelectedEvent(data.event);
+      }
     } catch (error) {
       console.error('Error fetching registrations:', error);
     }
@@ -185,12 +190,21 @@ const OrganizerDashboard = () => {
     const handleCreateEvent = async (e) => {
         e.preventDefault();
         try {
+        // Client-side validation: reg deadline must be before event end date
+        if (eventForm.registrationDeadline && eventForm.eventEndDate) {
+            if (new Date(eventForm.registrationDeadline) > new Date(eventForm.eventEndDate)) {
+                alert('Registration Deadline must be before or on the Event End Date.');
+                return;
+            }
+        }
         const eventData = {
             ...eventForm,
             maxParticipants: eventForm.maxParticipants ? parseInt(eventForm.maxParticipants, 10) : undefined,
             fee: eventForm.fee ? parseFloat(eventForm.fee) : 0,
+            merchandiseFee: eventForm.merchandiseFee ? parseFloat(eventForm.merchandiseFee) : 0,
             tags: eventForm.tags ? eventForm.tags.split(',').map(t => t.trim()).filter(t => t) : [],
-            registrationDeadline: eventForm.registrationDeadline ? eventForm.registrationDeadline : eventForm.eventStartDate
+            // Only include registrationDeadline if explicitly set, otherwise let backend use eventStartDate
+            registrationDeadline: eventForm.registrationDeadline || undefined
         };
         await createEvent(eventData);
         alert('Event created successfully!');
@@ -206,6 +220,7 @@ const OrganizerDashboard = () => {
             registrationDeadline: '',
             eligibility: [],
             fee: 0,
+            merchandiseFee: 0,
             tags: '',
             formSchema: [],
             items: [],
@@ -408,20 +423,55 @@ const OrganizerDashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{event.maxParticipants || 'Unlimited'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                          <Button onClick={() => navigate(`/events/${event._id}`)} size="sm" variant="secondary">View</Button>
+                          {/* View button - only for Published, Ongoing, Completed events */}
+                          {['PUBLISHED', 'ONGOING', 'COMPLETED', 'CLOSED'].includes(event.status) && (
+                            <Button onClick={() => navigate(`/events/${event._id}`)} size="sm" variant="secondary">View</Button>
+                          )}
+                          
+                          {/* Draft events - full edit access */}
                           {event.status === 'DRAFT' && (
                             <>
                               <Button onClick={() => setShowEditForm(event)} size="sm" variant="info">Edit</Button>
                               <Button onClick={() => handlePublishEvent(event._id)} size="sm" variant="success">Publish</Button>
+                              <Button onClick={() => handleChangeStatus(event._id, 'CANCELLED')} size="sm" variant="danger">Delete</Button>
                             </>
                           )}
+                          
+                          {/* Published events - limited edit, can view registrations */}
                           {event.status === 'PUBLISHED' && (
+                            <>
+                              <Button onClick={() => setShowEditForm({...event, isPublished: true})} size="sm" variant="info">Edit</Button>
+                              <Button onClick={() => handleViewRegistrations(event)} size="sm" variant="info">Registrations</Button>
+                              <Button onClick={() => handleViewAnalytics(event)} size="sm" variant="purple">Analytics</Button>
+                              <Button onClick={() => setShowFeedbackViewer(event)} size="sm" variant="success">Feedback</Button>
+                              <Button onClick={() => handleChangeStatus(event._id, 'ONGOING')} size="sm" variant="warning">Start Event</Button>
+                              <Button onClick={() => handleChangeStatus(event._id, 'CANCELLED')} size="sm" variant="danger">Cancel</Button>
+                            </>
+                          )}
+                          
+                          {/* Ongoing events - status change only */}
+                          {event.status === 'ONGOING' && (
                             <>
                               <Button onClick={() => handleViewRegistrations(event)} size="sm" variant="info">Registrations</Button>
                               <Button onClick={() => handleViewAnalytics(event)} size="sm" variant="purple">Analytics</Button>
                               <Button onClick={() => setShowFeedbackViewer(event)} size="sm" variant="success">Feedback</Button>
-                              <Button onClick={() => handleChangeStatus(event._id, 'CANCELLED')} size="sm" variant="danger">Cancel</Button>
+                              <Button onClick={() => handleChangeStatus(event._id, 'COMPLETED')} size="sm" variant="success">Complete</Button>
+                              <Button onClick={() => handleChangeStatus(event._id, 'CLOSED')} size="sm" variant="warning">Close</Button>
                             </>
+                          )}
+                          
+                          {/* Completed/Closed events - view only */}
+                          {['COMPLETED', 'CLOSED'].includes(event.status) && (
+                            <>
+                              <Button onClick={() => handleViewRegistrations(event)} size="sm" variant="info">Registrations</Button>
+                              <Button onClick={() => handleViewAnalytics(event)} size="sm" variant="purple">Analytics</Button>
+                              <Button onClick={() => setShowFeedbackViewer(event)} size="sm" variant="success">Feedback</Button>
+                            </>
+                          )}
+                          
+                          {/* Cancelled events - no actions */}
+                          {event.status === 'CANCELLED' && (
+                            <span className="text-gray-400 italic">No actions available</span>
                           )}
                         </td>
                       </tr>
@@ -433,8 +483,13 @@ const OrganizerDashboard = () => {
              {/* Edit Form */}
             {showEditForm && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <Card className="max-w-lg w-full">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Event: {showEditForm.title}</h3>
+                <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                    Edit Event: {showEditForm.title}
+                    {showEditForm.isPublished && (
+                      <span className="ml-2 text-sm font-normal text-orange-600">(Limited editing for published events)</span>
+                    )}
+                  </h3>
                   <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
@@ -445,17 +500,33 @@ const OrganizerDashboard = () => {
                         updates[key] = undefined;
                       }
                     });
+                    // Validate reg deadline vs event end date
+                    const deadline = updates.registrationDeadline;
+                    const endDate = updates.eventEndDate || showEditForm.eventEndDate;
+                    if (deadline && endDate && new Date(deadline) > new Date(endDate)) {
+                      alert('Registration Deadline must be before or on the Event End Date.');
+                      return;
+                    }
+                    // Parse numeric values
+                    if (updates.maxParticipants) {
+                      updates.maxParticipants = parseInt(updates.maxParticipants, 10);
+                    }
                     handleEditEvent(showEditForm._id, updates);
                   }} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Title:</label>
-                      <input 
-                        name="title" 
-                        defaultValue={showEditForm.title} 
-                        required 
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
+                    {/* Title - only editable for draft */}
+                    {!showEditForm.isPublished && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title:</label>
+                        <input 
+                          name="title" 
+                          defaultValue={showEditForm.title} 
+                          required 
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Description - always editable */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Description:</label>
                       <textarea 
@@ -465,23 +536,50 @@ const OrganizerDashboard = () => {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
                     </div>
+                    
+                    {/* Venue - only editable for draft */}
+                    {!showEditForm.isPublished && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Venue:</label>
+                        <input 
+                          name="venue" 
+                          defaultValue={showEditForm.venue}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Max Participants - can increase for published */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Venue:</label>
-                      <input 
-                        name="venue" 
-                        defaultValue={showEditForm.venue}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Max Participants:</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Max Participants:
+                        {showEditForm.isPublished && <span className="text-xs text-gray-500 ml-1">(can only increase)</span>}
+                      </label>
                       <input 
                         type="number" 
                         name="maxParticipants" 
                         defaultValue={showEditForm.maxParticipants}
+                        min={showEditForm.isPublished ? showEditForm.maxParticipants : undefined}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
                     </div>
+                    
+                    {/* Registration Deadline - can extend for published */}
+                    {showEditForm.isPublished && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Registration Deadline:
+                          <span className="text-xs text-gray-500 ml-1">(can only extend)</span>
+                        </label>
+                        <input 
+                          type="datetime-local" 
+                          name="registrationDeadline" 
+                          defaultValue={showEditForm.registrationDeadline ? toDatetimeLocal(new Date(showEditForm.registrationDeadline)) : ''}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    )}
+                    
                     <div className="flex gap-3">
                       <Button type="submit" variant="success" className="flex-1">Update</Button>
                       <Button type="button" onClick={() => setShowEditForm(null)} variant="secondary" className="flex-1">Cancel</Button>
@@ -598,16 +696,35 @@ const OrganizerDashboard = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Registration Fee ($):</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Registration Fee (₹) <span className="text-gray-400 font-normal">(base fee per participant)</span>:</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     value={eventForm.fee}
                     onChange={(e) => setEventForm({ ...eventForm, fee: e.target.value })}
-                    placeholder="0.00"
+                    placeholder="100"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
+
+                {eventForm.type === 'MERCH' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Per-Item Merchandise Fee (₹) <span className="text-gray-400 font-normal">(per merch item purchased)</span>:</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={eventForm.merchandiseFee}
+                      onChange={(e) => setEventForm({ ...eventForm, merchandiseFee: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    {eventForm.fee > 0 && eventForm.merchandiseFee > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        No merch: ₹{eventForm.fee} | With 1 item: ₹{parseFloat(eventForm.fee) + parseFloat(eventForm.merchandiseFee)} | Example (2 items): ₹{parseFloat(eventForm.fee) + 2 * parseFloat(eventForm.merchandiseFee)}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Tags (comma-separated):</label>
@@ -722,7 +839,12 @@ const OrganizerDashboard = () => {
                         <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                           <div className="flex-1">
                             <p className="font-medium text-sm">{field.label}</p>
-                            <p className="text-xs text-gray-500">{field.type} {field.required && '(Required)'}</p>
+                            <p className="text-xs text-gray-500">
+                              {field.type} {field.required && '(Required)'}
+                              {field.type === 'select' && field.options?.length > 0 && (
+                                <span className="ml-2">Options: {field.options.join(', ')}</span>
+                              )}
+                            </p>
                           </div>
                           <Button 
                             onClick={() => {
@@ -739,26 +861,44 @@ const OrganizerDashboard = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                    <input
-                      type="text"
-                      placeholder="Field Label"
-                      id="fieldLabel"
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
-                    <select
-                      id="fieldType"
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                      <option value="select">Select</option>
-                      <option value="checkbox">Checkbox</option>
-                    </select>
-                    <label className="flex items-center px-3 py-2 border border-gray-300 rounded-lg">
-                      <input type="checkbox" id="fieldRequired" className="mr-2" />
-                      <span className="text-sm">Required</span>
-                    </label>
+                  <div className="space-y-3 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Field Label"
+                        id="fieldLabel"
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                      <select
+                        id="fieldType"
+                        onChange={(e) => {
+                          const optionsRow = document.getElementById('fieldOptionsRow');
+                          if (optionsRow) {
+                            optionsRow.style.display = e.target.value === 'select' ? 'block' : 'none';
+                          }
+                        }}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="select">Select (Dropdown)</option>
+                        <option value="checkbox">Checkbox</option>
+                      </select>
+                      <label className="flex items-center px-3 py-2 border border-gray-300 rounded-lg">
+                        <input type="checkbox" id="fieldRequired" className="mr-2" />
+                        <span className="text-sm">Required</span>
+                      </label>
+                    </div>
+                    
+                    {/* Options row for select fields */}
+                    <div id="fieldOptionsRow" style={{display: 'none'}}>
+                      <input
+                        type="text"
+                        placeholder="Options (comma-separated, e.g., Option 1, Option 2, Option 3)"
+                        id="fieldOptions"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
                   </div>
 
                   <Button
@@ -767,9 +907,15 @@ const OrganizerDashboard = () => {
                       const label = document.getElementById('fieldLabel').value;
                       const type = document.getElementById('fieldType').value;
                       const required = document.getElementById('fieldRequired').checked;
+                      const optionsInput = document.getElementById('fieldOptions').value;
                       
                       if (!label) {
                         alert('Please enter a field label');
+                        return;
+                      }
+                      
+                      if (type === 'select' && !optionsInput.trim()) {
+                        alert('Please enter options for the select field');
                         return;
                       }
 
@@ -778,6 +924,7 @@ const OrganizerDashboard = () => {
                         label,
                         type,
                         required,
+                        options: type === 'select' ? optionsInput.split(',').map(o => o.trim()).filter(o => o) : [],
                         order: eventForm.formSchema.length
                       };
 
@@ -788,6 +935,9 @@ const OrganizerDashboard = () => {
 
                       document.getElementById('fieldLabel').value = '';
                       document.getElementById('fieldRequired').checked = false;
+                      document.getElementById('fieldOptions').value = '';
+                      document.getElementById('fieldType').value = 'text';
+                      document.getElementById('fieldOptionsRow').style.display = 'none';
                     }}
                     variant="secondary"
                     size="sm"
@@ -1015,7 +1165,38 @@ const OrganizerDashboard = () => {
                 <p className="text-gray-500 text-lg">No registrations yet</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* Export and Search Controls */}
+                <div className="flex justify-between items-center mb-4">
+                  <p className="text-sm text-gray-600">
+                    Total: {registrations.length} registrations
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const { exportRegistrations } = await import('../../api/organizerService');
+                        const blob = await exportRegistrations(selectedEvent._id);
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${selectedEvent.title.replace(/\s+/g, '_')}_registrations.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                      } catch (error) {
+                        alert('Failed to export registrations');
+                        console.error(error);
+                      }
+                    }}
+                    variant="success"
+                    size="sm"
+                  >
+                    Export CSV
+                  </Button>
+                </div>
+                
+                <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1025,6 +1206,11 @@ const OrganizerDashboard = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered At</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Status</th>
+                      {selectedEvent?.formSchema?.map((field) => (
+                        <th key={field.fieldId} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {field.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1050,15 +1236,35 @@ const OrganizerDashboard = () => {
                             {reg.attended ? 'Attended' : 'Not Attended'}
                           </span>
                         </td>
+                        {/* ======================= FINAL FIX APPLIED HERE ======================= */}
+                        {selectedEvent?.formSchema?.map((field) => {
+                          const safeResponse = reg.formResponse || {};
+                          const nestedData = Object.values(safeResponse).find(
+                            (val) => typeof val === "object" && val !== null
+                          ) || safeResponse;
+                          
+                          const fieldValue = nestedData[field.fieldId];
+
+                          return (
+                            <td key={field.fieldId} className="px-6 py-4 text-sm text-gray-700">
+                              {fieldValue != null && fieldValue !== ""
+                                ? String(fieldValue)
+                                : <span className="text-gray-400">N/A</span>
+                              }
+                            </td>
+                          );
+                        })}
+                        {/* ====================================================================== */}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </Card>
         )}
-  {/* ANALYTICS */}
+ {/* ANALYTICS */}
         {activeTab === 'analytics' && (
           <Card title="Event Analytics">
             {/* Event Selector */}
@@ -1116,7 +1322,7 @@ const OrganizerDashboard = () => {
                 </div>
                 <div className="bg-indigo-50 rounded-lg p-6">
                   <p className="text-sm font-medium text-indigo-600 mb-1">Revenue</p>
-                  <p className="text-3xl font-bold text-indigo-900">${analytics.analytics?.revenue || 0}</p>
+                  <p className="text-3xl font-bold text-indigo-900">₹{analytics.analytics?.revenue || 0}</p>
                 </div>
               </div>
             )}
@@ -1125,15 +1331,15 @@ const OrganizerDashboard = () => {
 
         {/* PAYMENT APPROVALS */}
         {activeTab === 'payments' && (
-          <Card title="Payment Approvals for Merchandise Orders">
+          <Card title="Payment Approvals">
             {!selectedPaymentEvent ? (
               <div>
-                <p className="text-gray-700 mb-4">Select a merchandise event to view payment approvals:</p>
+                <p className="text-gray-700 mb-4">Select an event to view payment approvals:</p>
                 <div className="space-y-2">
-                  {myEvents.filter(e => e.type === 'MERCH').length === 0 ? (
-                    <p className="text-gray-500">No merchandise events found</p>
+                  {myEvents.filter(e => e.type === 'MERCH' || (e.fee && e.fee > 0)).length === 0 ? (
+                    <p className="text-gray-500">No paid events found</p>
                   ) : (
-                    myEvents.filter(e => e.type === 'MERCH').map(event => (
+                    myEvents.filter(e => e.type === 'MERCH' || (e.fee && e.fee > 0)).map(event => (
                       <button
                         key={event._id}
                         onClick={() => {
@@ -1145,7 +1351,11 @@ const OrganizerDashboard = () => {
                         <div className="flex justify-between items-center">
                           <div>
                             <p className="font-semibold text-gray-900">{event.title}</p>
-                            <p className="text-sm text-gray-500">{new Date(event.eventStartDate).toLocaleDateString()}</p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(event.eventStartDate).toLocaleDateString()}
+                              {' · '}
+                              {event.type === 'MERCH' ? 'Merchandise' : `Registration Fee: ₹${event.fee}`}
+                            </p>
                           </div>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             event.status === 'PUBLISHED' ? 'bg-green-100 text-green-800' :
@@ -1219,13 +1429,13 @@ const OrganizerDashboard = () => {
                           <div className="md:col-span-1">
                             <h3 className="font-semibold text-gray-900 mb-2">Participant Details</h3>
                             <p className="text-sm text-gray-600">
-                              <span className="font-medium">Name:</span> {reg.participantId?.participantProfile?.name || 'N/A'}
+                              <span className="font-medium">Name:</span> {reg.participantId?.participantProfile?.firstname && reg.participantId?.participantProfile?.lastname ? `${reg.participantId.participantProfile.firstname} ${reg.participantId.participantProfile.lastname}` : 'N/A'}
                             </p>
                             <p className="text-sm text-gray-600">
                               <span className="font-medium">Email:</span> {reg.participantId?.email || 'N/A'}
                             </p>
                             <p className="text-sm text-gray-600">
-                              <span className="font-medium">Phone:</span> {reg.participantId?.participantProfile?.phoneNumber || 'N/A'}
+                              <span className="font-medium">Phone:</span> {reg.participantId?.participantProfile?.contactNumber || 'N/A'}
                             </p>
                             <p className="text-sm text-gray-600 mt-2">
                               <span className="font-medium">Order Date:</span> {new Date(reg.createdAt).toLocaleString()}
@@ -1233,25 +1443,38 @@ const OrganizerDashboard = () => {
                           </div>
 
                           <div className="md:col-span-1">
-                            <h3 className="font-semibold text-gray-900 mb-2">Order Details</h3>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Item:</span> {reg.order?.name || 'N/A'}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">SKU:</span> {reg.order?.sku || 'N/A'}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Variant:</span> {reg.order?.variant?.size || 'N/A'} / {reg.order?.variant?.color || 'N/A'}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Quantity:</span> {reg.order?.quantity || 0}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Price:</span> ₹{reg.order?.price || 0}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              <span className="font-medium">Total:</span> ₹{(reg.order?.price || 0) * (reg.order?.quantity || 0)}
-                            </p>
+                            <h3 className="font-semibold text-gray-900 mb-2">{reg.order?.sku === 'REGISTRATION_FEE' ? 'Payment Details' : 'Order Details'}</h3>
+                            {reg.order?.sku === 'REGISTRATION_FEE' ? (
+                              <>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Type:</span> Registration Fee
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Amount:</span> ₹{reg.order?.amountPaid || reg.order?.price || 0}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Item:</span> {reg.order?.name || 'N/A'}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">SKU:</span> {reg.order?.sku || 'N/A'}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Variant:</span> {reg.order?.variant?.size || 'N/A'} / {reg.order?.variant?.color || 'N/A'}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Quantity:</span> {reg.order?.quantity || 0}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Price:</span> ₹{reg.order?.price || 0}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Total:</span> ₹{(reg.order?.price || 0) * (reg.order?.quantity || 0)}
+                                </p>
+                              </>
+                            )}
                           </div>
 
                           <div className="md:col-span-1">

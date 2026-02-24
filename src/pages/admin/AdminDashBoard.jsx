@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getPendingOrganizers, approveOrganizer, rejectOrganizer, createOrganizer, getAllOrganizers, removeOrganizer, resetOrganizerPassword, getStatistics } from '../../api/adminService';
+import { getPendingOrganizers, approveOrganizer, rejectOrganizer, createOrganizer, getAllOrganizers, removeOrganizer, reactivateOrganizer, resetOrganizerPassword, getStatistics } from '../../api/adminService';
 import Navbar from '../../components/Navbar';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -30,6 +30,21 @@ const AdminDashBoard = () => {
         contactEmail: '', 
         contactNumber: ''
     });
+
+    // Generate random password
+    const generatePassword = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+        let password = '';
+        for (let i = 0; i < 12; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+    };
+
+    const handleAutoGeneratePassword = () => {
+        const password = generatePassword();
+        setNewOrganizer({...newOrganizer, password});
+    };
 
     const handleLogout = () => {
         logout();
@@ -138,6 +153,18 @@ const AdminDashBoard = () => {
         }
     };
 
+    const handleReactivateOrganizer = async (organizerId) => {
+        if (!window.confirm('Are you sure you want to reactivate this organizer?')) return;
+        
+        try {
+            await reactivateOrganizer(organizerId);
+            alert('Organizer reactivated successfully!');
+            fetchAllOrganizers();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to reactivate organizer. Please try again.');   
+        }
+    };
+
     const handleResetPassword = async (id) => {
         if (!newPassword) {
             alert('Please enter a new password');
@@ -234,13 +261,24 @@ const AdminDashBoard = () => {
                                 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Password:</label>
-                                    <input 
-                                        type="password" 
-                                        value={newOrganizer.password}
-                                        onChange={(e) => setNewOrganizer({...newOrganizer, password: e.target.value})}
-                                        required 
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                    />
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="text" 
+                                            value={newOrganizer.password}
+                                            onChange={(e) => setNewOrganizer({...newOrganizer, password: e.target.value})}
+                                            required 
+                                            placeholder="Enter or auto-generate"
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoGeneratePassword}
+                                            className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium whitespace-nowrap"
+                                        >
+                                            Generate
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Click Generate for a secure auto-generated password</p>
                                 </div>
                             </div>
                             
@@ -363,6 +401,11 @@ const AdminDashBoard = () => {
                                                     }`}>
                                                         {org.isVerified ? 'Verified' : 'Not Verified'}
                                                     </span>
+                                                    {org.isActive === false && (
+                                                        <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                                            Deactivated
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                     {showResetPasswordForm === org._id ? (
@@ -383,8 +426,17 @@ const AdminDashBoard = () => {
                                                     ) : (
                                                         <div className="space-x-2">
                                                             <Button onClick={() => setShowResetPasswordForm(org._id)} size="sm" variant="info">Reset Password</Button>
-                                                            <Button onClick={() => handleRemoveOrganizer(org._id, false)} size="sm" variant="warning">Deactivate</Button>
-                                                            <Button onClick={() => handleRemoveOrganizer(org._id, true)} size="sm" variant="danger">Delete</Button>
+                                                            {org.isActive !== false ? (
+                                                                <>
+                                                                    <Button onClick={() => handleRemoveOrganizer(org._id, false)} size="sm" variant="warning">Deactivate</Button>
+                                                                    <Button onClick={() => handleRemoveOrganizer(org._id, true)} size="sm" variant="danger">Delete</Button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Button onClick={() => handleReactivateOrganizer(org._id)} size="sm" variant="success">Reactivate</Button>
+                                                                    <Button onClick={() => handleRemoveOrganizer(org._id, true)} size="sm" variant="danger">Delete</Button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>
@@ -409,10 +461,6 @@ const AdminDashBoard = () => {
                                 <div className="bg-green-50 rounded-lg p-6">
                                     <p className="text-sm font-medium text-green-600 mb-1">Verified Organizers</p>
                                     <p className="text-3xl font-bold text-green-900">{statistics.verifiedOrganizers}</p>
-                                </div>
-                                <div className="bg-yellow-50 rounded-lg p-6">
-                                    <p className="text-sm font-medium text-yellow-600 mb-1">Pending Approvals</p>
-                                    <p className="text-3xl font-bold text-yellow-900">{statistics.pendingOrganizers}</p>
                                 </div>
                                 <div className="bg-purple-50 rounded-lg p-6">
                                     <p className="text-sm font-medium text-purple-600 mb-1">Total Events</p>
