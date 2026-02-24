@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyRegistrations, cancelRegistration, uploadPaymentProof } from '../../api/participantService';
+import { getMyTeams } from '../../api/teamService';
 import Navbar from '../../components/Navbar';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -23,7 +24,34 @@ const ParticipantDashboard = () => {
     const fetchMyRegistrations = async () => {
         try {
             const data = await getMyRegistrations();
-            setRegistrations(data);
+
+            // Also surface team events for team members (who have no individual registration)
+            try {
+                const teams = await getMyTeams();
+                const registeredEventIds = new Set(
+                    data.map(r => String(r.eventId?._id || r.eventId))
+                );
+                const teamEntries = teams
+                    .filter(team => team.status !== 'CANCELLED')
+                    .filter(team => {
+                        // Only include if the user doesn't already have an individual reg for this event
+                        const eid = String(team.eventId?._id || team.eventId);
+                        return !registeredEventIds.has(eid);
+                    })
+                    .map(team => ({
+                        _id: `team_${team._id}`,
+                        isTeamEntry: true,
+                        teamId: team._id,
+                        teamName: team.teamName,
+                        eventId: team.eventId,
+                        status: (team.status === 'COMPLETE' || team.status === 'REGISTERED') ? 'CONFIRMED' : 'PENDING',
+                        type: 'TEAM',
+                    }));
+                setRegistrations([...data, ...teamEntries]);
+            } catch (teamErr) {
+                console.error('Error fetching teams for dashboard:', teamErr);
+                setRegistrations(data);
+            }
         } catch (error) {
             console.error('Error fetching registrations:', error);
         }
@@ -202,10 +230,15 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                    reg.type === 'MERCH' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                                                    reg.type === 'MERCH' ? 'bg-purple-100 text-purple-800' :
+                                                    reg.type === 'TEAM' ? 'bg-green-100 text-green-800' :
+                                                    'bg-blue-100 text-blue-800'
                                                 }`}>
                                                     {reg.type || 'N/A'}
                                                 </span>
+                                                {reg.isTeamEntry && (
+                                                    <span className="block text-xs text-gray-500 mt-0.5">{reg.teamName}</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-500">
                                                 {reg.eventId?.organizerId?.organizerProfile?.name || 'N/A'}
@@ -250,7 +283,9 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-500 font-mono">
-                                                {reg.status === 'PENDING' ? (
+                                                {reg.isTeamEntry ? (
+                                                    <span className="text-green-600 text-xs font-medium">Team Entry</span>
+                                                ) : reg.status === 'PENDING' ? (
                                                     <span className="text-yellow-600 text-xs font-medium">Awaiting Payment Approval</span>
                                                 ) : reg.status === 'CONFIRMED' && reg.qrPayload ? (
                                                     <button
@@ -284,7 +319,8 @@ const handlePaymentUpload = async (registrationId, imageFile) => {
                                                             {reg.order?.paymentProof ? 'Re-upload' : 'Upload'} Payment
                                                         </Button>
                                                     )}
-                                                    {(reg.status === 'CONFIRMED' || reg.status === 'PENDING') && 
+                                                    {!reg.isTeamEntry &&
+                                                     (reg.status === 'CONFIRMED' || reg.status === 'PENDING') && 
                                                      activeTab === 'upcoming' && 
                                                      !(reg.type === 'MERCH' && reg.order?.paymentStatus === 'APPROVED') && (
                                                         <Button 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getEventById, registerForEvent, registerForMerchEvent } from '../../api/eventService';
-import { createTeam } from '../../api/teamService';
+import { createTeam, getMyTeams } from '../../api/teamService';
 import { getMyRegistrations } from '../../api/participantService';
 import { initSocket, disconnectSocket } from '../../api/messageService';
 import { useAuth } from '../../context/AuthContext';
@@ -69,7 +69,28 @@ const EventDetails = () => {
             const regEventId = reg.eventId?._id || reg.eventId;
             return regEventId === id && reg.status === 'REJECTED';
           });
-          const registered = !!myReg;
+          let registered = !!myReg;
+
+          // For team events, also check if participant is in a team for this event
+          if (!registered && event.allowTeams) {
+            try {
+              const myTeams = await getMyTeams();
+              const hasTeam = myTeams.some(team => {
+                const teamEventId = team.eventId?._id || team.eventId;
+                if (teamEventId !== id) return false;
+                // Leader always counts; members need ACCEPTED status
+                const isLeader = String(team.teamLeader?._id || team.teamLeader) === String(user.id);
+                const isAcceptedMember = team.members?.some(
+                  m => String(m.userId?._id || m.userId) === String(user.id) && m.status === 'ACCEPTED'
+                );
+                return isLeader || isAcceptedMember;
+              });
+              if (hasTeam) registered = true;
+            } catch (teamErr) {
+              console.error('Error checking team membership:', teamErr);
+            }
+          }
+
           setIsRegistered(registered);
           setMyRegistration(myReg || null);
           setRejectedRegistration(rejectedReg || null);
